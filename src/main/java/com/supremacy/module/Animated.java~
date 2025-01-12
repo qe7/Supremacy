@@ -1,0 +1,8 @@
+package com.supremacy.module;
+
+import com.supremacy.animation.Animation;
+import com.supremacy.animation.Easing;
+
+public abstract class Animated {
+    private final Animation animation = new Animation(Easing.LINEAR, 200);
+}

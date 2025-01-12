@@ -1,0 +1,532 @@
+package com.supremacy.nanovg;
+
+import com.google.inject.Inject;
+import com.google.inject.Singleton;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.util.Window;
+import org.lwjgl.nanovg.NVGColor;
+import org.lwjgl.nanovg.NVGPaint;
+import org.lwjgl.nanovg.NanoVG;
+import java.awt.*;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.lwjgl.nanovg.NanoVG.*;
+import static org.lwjgl.nanovg.NanoVG.nvgLinearGradient;
+import static org.lwjgl.nanovg.NanoVGGL3.*;
+
+@Singleton
+public final class NanoVGManager {
+    private static final long vg = nvgCreate(NVG_ANTIALIAS | NVG_STENCIL_STROKES);
+
+    private final MinecraftClient minecraftClient;
+
+    private static NanoVGManager nanoVGManager;
+
+    @Inject
+    public NanoVGManager(final MinecraftClient minecraftClient) {
+        this.minecraftClient = minecraftClient;
+    }
+
+    public static NanoVGManager getInstance() {
+        if (nanoVGManager == null) {
+            nanoVGManager = new NanoVGManager(MinecraftClient.getInstance());
+        }
+
+        return nanoVGManager;
+    }
+
+
+    public void curve(float startX, float startY, float controlX, float controlY, float endX, float endY, float thickness, Color color) {
+        nvgBeginPath(vg);
+        nvgFillColor(vg, createNVGColor(color.getRGB()));
+        nvgMoveTo(vg, startX, startY);
+        nvgBezierTo(vg, controlX, controlY, controlX, controlY, endX, endY);
+        nvgStrokeWidth(vg, thickness);
+
+        nvgStroke(vg);
+        nvgClosePath(vg);
+
+    }
+
+    public void rectForBlur(final float x, final float y, final float width, final float height) {
+        nvgBeginPath(vg);
+        nvgRect(vg, x, y, width, height);
+        nvgClosePath(vg);
+    }
+
+    public NVGPaint createNVGPaint() {
+        return NVGPaint.calloc();
+    }
+
+    public void scissor(float x, float y, float width, float height) {
+        NanoVG.nvgScissor(vg, x, y, width, height);
+    }
+
+    public void resetScissor() {
+        NanoVG.nvgResetScissor(vg);
+    }
+
+    public void immediateRender(final Runnable content) {
+        final Window window = this.minecraftClient.getWindow();
+        final float scaleFactor = (float) window.getScaleFactor();
+
+        GLState.backup();
+
+        nvgBeginFrame(vg, window.getWidth(), window.getHeight(), 2.0f / scaleFactor);
+        nvgScale(vg, scaleFactor, scaleFactor);
+
+        content.run();
+
+        nvgEndFrame(vg);
+
+        GLState.restore();
+    }
+
+    public void boxGradientRect(float x, float y, float w, float h, float r, float f, int icol, int ocol) {
+        NVGPaint paint = nvgBoxGradient(vg, x, y, w, h, r, f, createNVGColor(icol), createNVGColor(ocol), NVGPaint.calloc());
+
+        nvgBeginPath(vg);
+        nvgRect(vg, x, y, w, h);
+        nvgFillPaint(vg, paint);
+        nvgFill(vg);
+
+        paint.free();
+    }
+
+
+
+    public void line(final float startX, final float startY, final float endX, final float endY, final float thickness, final int color) {
+        final NVGColor nvgColor = createNVGColor(color);
+
+        nvgBeginPath(vg);
+        nvgStrokeColor(vg, nvgColor);
+        nvgStrokeWidth(vg, thickness);
+        nvgMoveTo(vg, startX, startY);
+        nvgLineTo(vg, endX, endY);
+        nvgStroke(vg);
+        nvgClosePath(vg);
+
+        nvgColor.free();
+    }
+
+    public void rect(final float x, final float y, final float width, final float height, final int color) {
+        final NVGColor nvgColor = createNVGColor(color);
+
+        nvgBeginPath(vg);
+        nvgFillColor(vg, nvgColor);
+        nvgRect(vg, x, y, width, height);
+        nvgFill(vg);
+        nvgClosePath(vg);
+
+        nvgColor.free();
+    }
+
+
+    public void arrow(final float x, final float y, final float size, final int color) {
+        final NVGColor nvgColor = createNVGColor(color);
+
+        // Begin drawing path
+        nvgBeginPath(vg);
+
+        // Set the fill color
+        nvgFillColor(vg, nvgColor);
+
+        // Define the arrow shape (triangle) rotated 180 degrees
+        nvgMoveTo(vg, x, y + size);            // Bottom point of the arrow
+        nvgLineTo(vg, x - size / 2, y);        // Top-left point
+        nvgLineTo(vg, x + size / 2, y);        // Top-right point
+        nvgClosePath(vg);                      // Close the shape (back to bottom point)
+
+        // Fill the shape with the specified color
+        nvgFill(vg);
+    }
+
+    public void rotate(final float angle, final float x, final float y, final Runnable content) {
+        nvgSave(vg);
+        nvgTranslate(vg, x, y);
+        nvgRotate(vg, angle);
+        nvgTranslate(vg, -x, -y);
+
+        content.run();
+
+        nvgRestore(vg);
+    }
+
+
+    public void scale(final float factor, final float x, final float y, final float width, final float height, final Runnable content) {
+        final float translateX = x + width / 2f;
+        final float translateY = y + height / 2f;
+
+        nvgSave(vg);
+        nvgTranslate(vg, translateX, translateY);
+        nvgScale(vg, factor, factor);
+        nvgTranslate(vg, -translateX, -translateY);
+
+        content.run();
+
+        nvgRestore(vg);
+    }
+
+    public void drawHorizontalGradientRect(float x, float y, float w, float h, int startColor, int endColor) {
+        NVGPaint paint = nvgLinearGradient(vg, x, y, x + w, y, createNVGColor(startColor), createNVGColor(endColor), NVGPaint.calloc());
+
+        nvgBeginPath(vg);
+        nvgRect(vg, x, y, w, h);
+        nvgFillPaint(vg, paint);
+        nvgFill(vg);
+
+        paint.free();
+    }
+    public void drawVerticalGradientRect(float x, float y, float w, float h, int startColor, int endColor) {
+        NVGPaint paint = nvgLinearGradient(vg, x, y, x, y + h, createNVGColor(startColor), createNVGColor(endColor), NVGPaint.calloc());
+
+        nvgBeginPath(vg);
+        nvgRect(vg, x, y, w, h);
+        nvgFillPaint(vg, paint);
+        nvgFill(vg);
+
+        paint.free();
+    }
+
+
+    public void drawRainbowRect(float x, float y, float w, float h) {
+        // Define the rainbow colors (convert hex to normalized RGB for NVGColor)
+        NVGColor[] colors = {
+                createNVGColor(0xff38b0d9), // Start color (ARGB format)
+                createNVGColor(0xff807dd2),
+                createNVGColor(0xffcc67ac),
+                createNVGColor(0xffcbe13c)  // End color
+        };
+
+        float segmentWidth = w / (colors.length - 1); // Divide rect width into color segments
+
+        for (int i = 0; i < colors.length - 1; i++) {
+            NVGColor startColor = colors[i];
+            NVGColor endColor = colors[i + 1];
+
+            // Create a gradient for each segment
+            NVGPaint gradient = NVGPaint.calloc();
+            nvgLinearGradient(vg,
+                    x + (i * segmentWidth), y,          // Start of gradient
+                    x + ((i + 1) * segmentWidth), y,    // End of gradient
+                    startColor, endColor,
+                    gradient);
+
+            // Draw the gradient-filled rectangle segment
+            nvgBeginPath(vg);
+            nvgRect(vg,
+                    x + (i * segmentWidth), y, // Start of the segment
+                    segmentWidth + (i != colors.length - 2 ? 1 : 0), h            // Width and height of the segment
+            );
+            nvgFillPaint(vg, gradient);
+            nvgFill(vg);
+
+            // Clean up resources
+            gradient.free();
+        }
+    }
+
+
+    public void drawGradientRoundedRect(float x, float y, float w, float h, float r, int startColor, int endColor) {
+        // gradient outline rect
+        NVGPaint paint = nvgLinearGradient(vg, x, y, x + w, y + h, createNVGColor(startColor), createNVGColor(endColor), NVGPaint.calloc());
+
+        nvgBeginPath(vg);
+        nvgRoundedRect(vg, x, y, w, h, r);
+        nvgFillPaint(vg, paint);
+        nvgFill(vg);
+
+        paint.free();
+
+    }
+
+    public void bezierCurve(final float startX, final float startY, final float controlX1, final float controlY1, final float controlX2, final float controlY2, final float endX, final float endY, final float thickness, final int color) {
+        final NVGColor nvgColor = createNVGColor(color);
+
+        nvgBeginPath(vg);
+        nvgStrokeColor(vg, nvgColor);
+        nvgStrokeWidth(vg, thickness);
+        nvgMoveTo(vg, startX, startY);
+        nvgBezierTo(vg, controlX1, controlY1, controlX2, controlY2, endX, endY);
+        nvgStroke(vg);
+        nvgClosePath(vg);
+
+        nvgColor.free();
+    }
+
+
+    public void roundedRect(final float x, final float y, final float width, final float height, final float radius, final int color) {
+        final NVGColor nvgColor = createNVGColor(color);
+
+        nvgBeginPath(vg);
+        nvgFillColor(vg, nvgColor);
+        nvgRoundedRect(
+                vg,
+                x,
+                y,
+                width,
+                height,
+                radius
+        );
+        nvgFill(vg);
+        nvgClosePath(vg);
+
+        nvgColor.free();
+    }
+
+
+
+    public void roundedRectVarying(final float x, final float y, final float width, final float height, final float radiusTopLeft, final float radiusTopRight, final float radiusBottomRight, final float radiusBottomLeft, final int color) {
+        final NVGColor nvgColor = createNVGColor(color);
+
+        nvgBeginPath(vg);
+        nvgFillColor(vg, nvgColor);
+        nvgRoundedRectVarying(
+                vg,
+                x,
+                y,
+                width,
+                height,
+                radiusTopLeft,
+                radiusTopRight,
+                radiusBottomRight,
+                radiusBottomLeft
+        );
+        nvgFill(vg);
+        nvgClosePath(vg);
+
+
+        nvgColor.free();
+    }
+
+    public void rectOutline(final float x, final float y, final float width, final float height, final float thickness, final int color) {
+        final NVGColor nvgColor = createNVGColor(color);
+
+        nvgBeginPath(vg);
+        nvgStrokeColor(vg, nvgColor);
+        nvgStrokeWidth(vg, thickness);
+        nvgRect(
+                vg,
+                x,
+                y,
+                width,
+                height
+        );
+        nvgStroke(vg);
+        nvgClosePath(vg);
+
+        nvgColor.free();
+    }
+
+    public void roundedRectOutline(final float x, final float y, final float width, final float height, final float radius, final float thickness, final int color) {
+        final NVGColor nvgColor = createNVGColor(color);
+
+
+        nvgBeginPath(vg);
+        nvgStrokeColor(vg, nvgColor);
+        nvgStrokeWidth(vg, thickness);
+        nvgRoundedRect(
+                vg,
+                x,
+                y,
+                width,
+                height,
+                radius
+        );
+        nvgStroke(vg);
+        nvgClosePath(vg);
+
+        nvgColor.free();
+    }
+
+    public void gradientRoundedRectOutline(final float x, final float y, final float width, final float height, final float radius, final float thickness, boolean horizontal, final int color, final int color2) {
+        final NVGColor nvgColor = createNVGColor(color);
+
+
+        NVGPaint paint = nvgLinearGradient(vg, x, y, horizontal ? width : x + width, y + height, createNVGColor(color), createNVGColor(color2), NVGPaint.calloc());
+
+        nvgBeginPath(vg);
+        nvgStrokePaint(vg, paint);
+        nvgStrokeWidth(vg, thickness);
+        nvgRoundedRect(
+                vg,
+                x,
+                y,
+                width,
+                height,
+                radius
+        );
+        nvgStroke(vg);
+        nvgClosePath(vg);
+
+        nvgColor.free();
+    }
+
+    public void gradientOutline(final float x, final float y, final float width, final float height, final float thickness, final int startColor, final int endColor) {
+        final NVGColor start = createNVGColor(startColor);
+        final NVGColor end = createNVGColor(endColor);
+
+        final NVGPaint paint = nvgLinearGradient(vg, x, y, x + width, y + height, start, end, NVGPaint.calloc());
+
+        nvgBeginPath(vg);
+        nvgStrokePaint(vg, paint);
+        nvgStrokeWidth(vg, thickness);
+        nvgRect(vg, x, y, width, height);
+        nvgStroke(vg);
+        nvgClosePath(vg);
+
+        start.free();
+        end.free();
+        paint.free();
+    }
+
+    public void gradientRoundedRectOutline(final float x, final float y, final float width, final float height, final float radius, final float thickness, final int startColor, final int endColor) {
+        final NVGColor start = createNVGColor(startColor);
+        final NVGColor end = createNVGColor(endColor);
+
+        final NVGPaint paint = nvgLinearGradient(vg, x, y, x + width, y + height, start, end, NVGPaint.calloc());
+
+        nvgBeginPath(vg);
+        nvgStrokePaint(vg, paint);
+        nvgStrokeWidth(vg, thickness);
+        nvgRoundedRect(vg, x, y, width, height, radius);
+        nvgStroke(vg);
+        nvgClosePath(vg);
+
+        start.free();
+        end.free();
+        paint.free();
+    }
+
+    public void drawHead(final float x, final float y, float width, float height, final int skinTextureGlId, final int color) {
+        nvgBeginPath(vg);
+
+        final NVGPaint nvgPaint = this.createPaintFromTexture(
+                skinTextureGlId,
+                x - 25, y - 25,
+                225, 225
+        );
+
+        nvgFillPaint(vg, nvgPaint);
+        nvgRect(vg, x + 3, y + 3, width, height);
+        nvgFill(vg);
+
+        nvgClosePath(vg);
+
+        nvgPaint.free();
+    }
+
+    public void drawRoundedHead(final float x, final float y, float width, float height, float radius, final int skinTextureGlId, final int color) {
+        nvgBeginPath(vg);
+
+        final NVGPaint nvgPaint = this.createPaintFromTexture(
+                skinTextureGlId,
+                x - 25, y - 25,
+                225, 225
+        );
+
+        nvgFillPaint(vg, nvgPaint);
+        nvgRoundedRect(vg, x + 3, y + 3, width, height, radius);
+        nvgFill(vg);
+
+        nvgClosePath(vg);
+
+        nvgPaint.free();
+    }
+
+    private final Map<Integer, Integer> textureCache = new HashMap<>();
+
+    public NVGPaint createPaintFromTexture(int textureID, float x, float y, float width, float height) {
+        Integer nvgTexId = textureCache.get(textureID);
+
+        if (nvgTexId == null) {
+            nvgTexId = nvglCreateImageFromHandle(vg, textureID, (int) width, (int) height, NVG_IMAGE_GENERATE_MIPMAPS);
+            textureCache.put(textureID, nvgTexId);
+        }
+
+        final NVGPaint nvgPaint = createNVGPaint();
+        nvgImagePattern(vg, x, y, width, height, 0, nvgTexId, NVG_IMAGE_GENERATE_MIPMAPS, nvgPaint);
+        return nvgPaint;
+    }
+
+
+    public NVGColor createNVGColor(final int color) {
+        final int[] rgba = this.hexToRGB(color);
+
+        return NVGColor.calloc()
+                .r(rgba[0] / 255f)
+                .g(rgba[1] / 255f)
+                .b(rgba[2] / 255f)
+                .a(rgba[3] / 255f);
+    }
+
+    private int[] hexToRGB(final int hex) {
+        final int red = (hex >> 16) & 0xFF;
+        final int green = (hex >> 8) & 0xFF;
+        final int blue = hex & 0xFF;
+        final int alpha = (hex >> 24) & 0xFF;
+
+        return new int[]{red, green, blue, alpha};
+    }
+
+
+    public long getVg() {
+        return vg;
+    }
+
+    public void gradientOutlineFourCorners(float x, float y, float width, float height, int thickness, int topLeftColor, int topRightColor, int bottomRightColor, int bottomLeftColor) {
+
+        // Begin drawing with NanoVG
+        nvgBeginPath(vg);
+
+        nvgRect(vg, x, y, width, height);
+
+        // Apply a four-corner gradient using linear gradients for each edge
+        NVGPaint gradientTop = nvgLinearGradient(vg, x, y, x + width, y, createNVGColor(topLeftColor), createNVGColor(topRightColor), NVGPaint.calloc());
+        NVGPaint gradientRight = nvgLinearGradient(vg, x + width, y, x + width, y + height, createNVGColor(topRightColor), createNVGColor(bottomRightColor), NVGPaint.calloc());
+        NVGPaint gradientBottom = nvgLinearGradient(vg, x + width, y + height, x, y + height, createNVGColor(bottomRightColor), createNVGColor(bottomLeftColor), NVGPaint.calloc());
+        NVGPaint gradientLeft = nvgLinearGradient(vg, x, y + height, x, y, createNVGColor(bottomLeftColor), createNVGColor(topLeftColor), NVGPaint.calloc());
+
+        // Apply gradients to the path
+        nvgStrokeWidth(vg, thickness);
+
+        // Top edge
+        nvgBeginPath(vg);
+        nvgMoveTo(vg, x - 1, y);
+        nvgLineTo(vg, x + width + 1, y + 1);
+        nvgStrokePaint(vg, gradientTop);
+        nvgStroke(vg);
+
+        // Right edge
+        nvgBeginPath(vg);
+        nvgMoveTo(vg, x + width, y);
+        nvgLineTo(vg, x + width, y + height + 1);
+        nvgStrokePaint(vg, gradientRight);
+        nvgStroke(vg);
+
+        // Bottom edge
+        nvgBeginPath(vg);
+        nvgMoveTo(vg, x + width, y + height);
+        nvgLineTo(vg, x, y + height);
+        nvgStrokePaint(vg, gradientBottom);
+        nvgStroke(vg);
+
+        // Left edge
+        nvgBeginPath(vg);
+        nvgMoveTo(vg, x, y + height + 1);
+        nvgLineTo(vg, x, y);
+        nvgStrokePaint(vg, gradientLeft);
+        nvgStroke(vg);
+
+    }
+
+    private NVGColor blendNVGColors(NVGColor color1, NVGColor color2) {
+        NVGColor blendedColor = NVGColor.create();
+        blendedColor.r((color1.r() + color2.r()) / 2.0f);
+        blendedColor.g((color1.g() + color2.g()) / 2.0f);
+        blendedColor.b((color1.b() + color2.b()) / 2.0f);
+        blendedColor.a((color1.a() + color2.a()) / 2.0f);
+        return blendedColor;
+    }
+}

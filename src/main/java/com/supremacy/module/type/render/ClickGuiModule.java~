@@ -1,0 +1,50 @@
+package com.supremacy.module.type.render;
+
+import com.google.inject.Inject;
+import com.supremacy.bind.BindService;
+import com.supremacy.module.CategoryEnum;
+import com.supremacy.module.ModuleInfo;
+import com.supremacy.module.ModuleRepository;
+import com.supremacy.module.SupremacyModule;
+import com.supremacy.screen.clickgui.ClickGuiScreen;
+import com.supremacy.toggle.ToggleService;
+import net.minecraft.client.MinecraftClient;
+import org.lwjgl.glfw.GLFW;
+
+@ModuleInfo(
+        name = "ClickGui",
+        description = "Opens the ClickGui",
+        category = CategoryEnum.RENDER
+)
+public final class ClickGuiModule implements SupremacyModule {
+
+    private final MinecraftClient minecraft;
+
+    private final ToggleService toggleService;
+
+    private final ModuleRepository moduleRepository;
+
+    private ClickGuiScreen clickGuiScreen;
+
+    @Inject
+    public ClickGuiModule(final BindService bindService, MinecraftClient minecraft, ToggleService toggleService, ModuleRepository moduleRepository) {
+        this.minecraft = minecraft;
+        this.toggleService = toggleService;
+        this.moduleRepository = moduleRepository;
+        bindService.bind(this, GLFW.GLFW_KEY_RIGHT_SHIFT);
+    }
+
+    @Override
+    public void onEnable() {
+        if (clickGuiScreen == null) {
+            clickGuiScreen = new ClickGuiScreen(toggleService, moduleRepository);
+        }
+        minecraft.setScreen(clickGuiScreen);
+    }
+
+    @Override
+    public void onDisable() {
+        minecraft.setScreen(null);
+    }
+
+}

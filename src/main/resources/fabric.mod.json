@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "supremacy",
+  "version": "${version}",
+  "name": "supremacy",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "environment": "*",
+  "entrypoints": {
+    "client": [
+      "com.supremacy.client.SupremacyClient"
+    ],
+    "main": [
+      "com.supremacy.Supremacy"
+    ]
+  },
+  "mixins": [
+    "supremacy.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}

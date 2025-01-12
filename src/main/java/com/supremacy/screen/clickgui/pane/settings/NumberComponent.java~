@@ -1,0 +1,179 @@
+package com.supremacy.screen.clickgui.pane.settings;
+
+
+import com.supremacy.animation.Animation;
+import com.supremacy.animation.Easing;
+import com.supremacy.module.ModuleRepository;
+import com.supremacy.nanovg.FontManager;
+import com.supremacy.nanovg.FontRenderer;
+import com.supremacy.nanovg.NanoVGManager;
+import com.supremacy.screen.clickgui.pane.AbstractComponent;
+import com.supremacy.screen.clickgui.pane.ModuleScreen;
+import com.supremacy.setting.type.Setting;
+import com.supremacy.setting.type.clamped.ClampedSetting;
+import net.minecraft.util.math.MathHelper;
+
+import java.awt.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+
+public final class NumberComponent extends AbstractComponent {
+
+    private final ClampedSetting<?> setting;
+    private boolean dragging;
+    private float width;
+
+    private final Animation animation = new Animation(Easing.LINEAR, 200);
+    private final NanoVGManager nanoVGManager = NanoVGManager.getInstance();
+    private final FontRenderer fontRenderer = FontManager.getInstance().getFont("verdana");
+
+    // were gonna use a seperate opacity animation for when hovering over the text, because realistically, on gui open you arent going to be hovered over it
+    private final Animation valueOpacityAnimation = new Animation(Easing.LINEAR, 200);
+
+    private Color textColor = new Color(255, 255, 255);
+
+    private Color outlineColor = new Color(59, 59, 59);
+
+    private Color black = new Color(0, 0, 0);
+
+    private Color secondTextOpacity = new Color(255, 255, 255);
+
+    public NumberComponent(final ModuleRepository moduleRepository, ModuleScreen moduleScreen, Setting<?> abstractValue) {
+        super(moduleRepository, moduleScreen, abstractValue);
+        this.setting = (ClampedSetting<?>) abstractValue;
+    }
+
+    @Override
+    public void initGui() {
+    }
+
+    @Override
+    public void render(int mouseX, int mouseY) {
+        this.width = (this.getModuleScreen().getClickGuiContext().getWidth() / 2f) - 90 + 3;
+
+        int backgroundOpacity = (int) (255 * this.getOpacity().getValue());
+        backgroundOpacity = MathHelper.clamp(backgroundOpacity, 0, 255);
+
+
+        if (this.dragging) {
+            final double value = mouseX - this.x - 21.5f;
+
+            final boolean maximum = this.setting.getMin().doubleValue() + ((this.setting.getMax().doubleValue() - this.setting.getMin().doubleValue()) / (this.width)) * value + this.setting.getStep().doubleValue() < this.setting.getMax().doubleValue();
+            final boolean minimum = this.setting.getMin().doubleValue() + ((this.setting.getMax().doubleValue() - this.setting.getMin().doubleValue()) / (this.width)) * value + this.setting.getStep().doubleValue() > this.setting.getMin().doubleValue();
+
+            if (minimum && maximum) {
+                this.setValue(this.setting, this.setting.getMin().doubleValue() + ((this.setting.getMax().doubleValue() - this.setting.getMin().doubleValue()) / this.width) * value + this.setting.getStep().doubleValue());
+            } else if (minimum) {
+                this.setValue(this.setting, this.setting.getMax().doubleValue());
+            } else if (maximum) {
+                this.setValue(this.setting, this.setting.getMin().doubleValue());
+            }
+        }
+
+        this.animation.run((this.width) * (this.setting.getValue().doubleValue() - this.setting.getMin().doubleValue()) / (this.setting.getMax().doubleValue() - this.setting.getMin().doubleValue()));
+
+        if (this.animation.getValue() > this.width) {
+            this.animation.setValue(this.width);
+        }
+        double animationWidth = this.animation.getValue();
+
+        if (textColor.getAlpha() != backgroundOpacity) {
+            textColor = new Color(255, 255, 255, backgroundOpacity);
+        }
+
+        if (black.getAlpha() != backgroundOpacity) {
+            black = new Color(0, 0, 0, backgroundOpacity);
+        }
+
+        this.fontRenderer.drawString(this.setting.getName(),
+                (float) (this.x + 21.5f),
+                (float) (this.y + (getExtendValue() -
+                        fontRenderer.getStringHeight(this.setting.getName(), 5f)) / 2f) - 3, // +1 for perfect center
+                5, textColor.getRGB());
+
+        final float y = (float) (this.y + (getExtendValue() - 5.5f) / 2f) + 3;
+
+        if (outlineColor.getAlpha() != backgroundOpacity) {
+            outlineColor = new Color(59, 59, 59, backgroundOpacity);
+        }
+
+        this.nanoVGManager.rect((float) (this.x + 21f), y, this.width, 2.5f, outlineColor.getRGB());
+
+        this.nanoVGManager.rectOutline((float) (this.x + 21f), y, this.width, 3f, .3f, black.getRGB());
+
+        if (animationWidth != 0) {
+            this.nanoVGManager.rect((float) (this.x + 21f), y + 0.5f, (float) animationWidth, 2f, this.getGuiColor().getRGB());
+        }
+
+        this.valueOpacityAnimation.run((isHoveringCoords((this.x + 21f), this.y + 2.5f, this.width + 5, getExtendValue(), mouseX, mouseY) || this.dragging) ? 255 : 0);
+
+        int opacity = (int) this.valueOpacityAnimation.getValue();
+        opacity = MathHelper.clamp(opacity, 0, 255);
+
+        final String text = String.valueOf(roundToPlace(this.setting.getValue().doubleValue(), 2));
+
+        if (secondTextOpacity.getAlpha() != opacity) {
+            secondTextOpacity = new Color(255, 255, 255, opacity);
+        }
+
+        FontManager.getInstance().getFont("verdanab").drawCenteredString(text,
+                (float) (this.x + animationWidth + 10),
+                (float) (this.y + 14), 5f, textColor.getRGB());
+
+    }
+
+
+    private void setValue(final ClampedSetting<?> number, final double value) {
+        if (number.getValue() instanceof Integer) {
+            final ClampedSetting<Integer> integer = (ClampedSetting<Integer>) number;
+            integer.setValue((int) value);
+        } else if (number.getValue() instanceof Float) {
+            final ClampedSetting<Float> floatNumber = (ClampedSetting<Float>) number;
+            floatNumber.setValue((float) value);
+        } else if (number.getValue() instanceof Double) {
+            final ClampedSetting<Double> doubleNumber = (ClampedSetting<Double>) number;
+            doubleNumber.setValue(value);
+        } else if (number.getValue() instanceof Long) {
+            final ClampedSetting<Long> longNumber = (ClampedSetting<Long>) number;
+            longNumber.setValue((long) value);
+        } else if (number.getValue() instanceof Short) {
+            final ClampedSetting<Short> shortNumber = (ClampedSetting<Short>) number;
+            shortNumber.setValue((short) value);
+        } else if (number.getValue() instanceof Byte) {
+            final ClampedSetting<Byte> byteNumber = (ClampedSetting<Byte>) number;
+            byteNumber.setValue((byte) value);
+        }
+    }
+
+
+    public double roundToPlace(double value, int place) {
+        BigDecimal bd = new BigDecimal(value).setScale(place, RoundingMode.HALF_UP);
+        return bd.doubleValue();
+    }
+
+    @Override
+    public void mouseClicked(int mouseX, int mouseY, int mouseButton) {
+        double animationWidth = this.animation.getValue();
+
+        final float y = (float) (this.y + (getExtendValue() - 5.5f) / 2f);
+
+        if (isHoveringCoords((this.x + 21f), y, this.width + 5, 5.5f, mouseX, mouseY)) {
+            this.dragging = true;
+        }
+    }
+
+    @Override
+    public void mouseReleased(int mouseX, int mouseY, int state) {
+        this.dragging = false;
+    }
+
+    @Override
+    public void onGuiClosed() {
+        this.dragging = false;
+    }
+
+    @Override
+    public int getExtendValue() {
+        return 14;
+    }
+}

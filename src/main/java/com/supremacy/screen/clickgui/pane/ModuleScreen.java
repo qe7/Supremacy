@@ -1,0 +1,485 @@
+package com.supremacy.screen.clickgui.pane;
+
+import com.supremacy.animation.Animation;
+import com.supremacy.animation.Easing;
+import com.supremacy.module.CategoryEnum;
+import com.supremacy.module.ModuleContext;
+import com.supremacy.module.ModuleRepository;
+import com.supremacy.nanovg.*;
+import com.supremacy.screen.clickgui.data.ClickGuiData;
+import com.supremacy.screen.clickgui.pane.settings.*;
+import com.supremacy.setting.type.Setting;
+import com.supremacy.setting.type.collection.ModuleMode;
+import com.supremacy.toggle.ToggleService;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.util.math.MathHelper;
+
+import java.awt.*;
+import java.util.*;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+public final class ModuleScreen {
+
+    private final Collection<ModuleContext> modules;
+    private final NanoVGManager nanoVGManager = NanoVGManager.getInstance();
+    private final FontRenderer fontRenderer = FontManager.getInstance().getFont("verdanab");
+    private CategoryEnum categoryEnum;
+    private final ClickGuiData clickGuiContext;
+    private Animation animation;
+    private final Map<String, Animation> animations = new HashMap<>();
+    private final Map<ModuleContext, Collection<AbstractComponent>> moduleComponentsMap = new HashMap<>();
+
+    private final FontRenderer icons = FontManager.getInstance().getFont("icons");
+
+    private int scrollY = 0;
+    private final int modulesPerRow = 2;
+
+    private final Animation opacityAnimation;
+    private final Animation scrollAnimation;
+    private final ModuleRepository moduleRepository;
+
+    private Color backgroundColor = new Color(21, 21, 21, 255);
+    private Color outlineColor = new Color(39, 39, 39, 255);
+    private Color iconColor = new Color(40, 40, 40, 255);
+    private Color disabledStartColor = new Color(36, 35, 35);
+    private Color disabledEndColor = new Color(54, 52, 52);
+    private Color whiteColor = new Color(255, 255, 255, 255);
+    private Color black = new Color(0, 0, 0);
+
+    private final ToggleService toggleService;
+
+    public ModuleScreen(final ModuleRepository moduleRepository, final ToggleService toggleService, final ClickGuiData clickGuiContext, Animation opacityAnimation) {
+        this.clickGuiContext = clickGuiContext;
+        this.toggleService = toggleService;
+        this.modules = new ArrayList<>(moduleRepository.getModules());
+        this.opacityAnimation = opacityAnimation;
+        this.scrollAnimation = new Animation(Easing.EASE_OUT_QUINT, 200);
+        this.moduleRepository = moduleRepository;
+
+        for (final ModuleContext moduleContext : this.modules) {
+            final List<AbstractComponent> components = new ArrayList<>();
+            final Collection<Setting<?>> settings = moduleContext.settingRepository().settings();
+
+            components.add(new BindComponent(moduleRepository, this, moduleContext));
+
+            // sort settings by priority
+            final List<Setting<?>> sortedSettings = settings.stream()
+                    .sorted(Comparator.comparingInt(setting -> {
+                        if (setting.getValue() instanceof Boolean) {
+                            return 0;
+                        } else if (setting.getValue() instanceof Number) {
+                            return 1;
+                        } else if (setting.getValue() instanceof ModuleMode) {
+                            return 2;
+                        }
+                        return 3;
+                    }))
+                    .toList();
+
+            // Create components based on sorted settings
+            for (final Setting<?> setting : sortedSettings) {
+                if (setting.getValue() instanceof Boolean) {
+                    components.add(new BooleanComponent(moduleRepository, this, setting));
+                } else if (setting.getValue() instanceof Number) {
+                    components.add(new NumberComponent(moduleRepository,this, setting));
+                } else if (setting.getValue() instanceof ModuleMode) {
+                    components.add(new ModeComponent(moduleRepository,this, setting));
+                } else if (setting.getValue() instanceof Color) {
+                    components.add(new ColorComponent(moduleRepository,this, setting));
+                }
+            }
+
+            components.forEach(component -> component.setOpacity(this.opacityAnimation));
+
+
+            this.moduleComponentsMap.put(moduleContext, components);
+        }
+    }
+
+    public ClickGuiData getClickGuiContext() {
+        return clickGuiContext;
+    }
+
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        List<ModuleContext> sortedModules = this.modules.stream()
+                .sorted((m1, m2) -> Integer.compare(
+                        this.moduleComponentsMap.getOrDefault(m2, Collections.emptyList()).size(),
+                        this.moduleComponentsMap.getOrDefault(m1, Collections.emptyList()).size()
+                ))
+                .toList();
+
+       this.nanoVGManager.immediateRender(() -> {
+
+            int i = 0;
+            float cumulativeHeight = 0;
+            float cumulativeHeight2 = 0;
+            float rowHeight;
+
+            int opacity = (int) (this.opacityAnimation.getValue());
+            opacity = MathHelper.clamp(opacity, 0, 255);
+
+
+            // Ensure colors have the correct opacity
+            backgroundColor = ensureOpacity(backgroundColor, opacity);
+            outlineColor = ensureOpacity(outlineColor, opacity);
+            iconColor = ensureOpacity(iconColor, opacity);
+            disabledStartColor = ensureOpacity(disabledStartColor, opacity);
+            disabledEndColor = ensureOpacity(disabledEndColor, opacity);
+            whiteColor = ensureOpacity(whiteColor, opacity);
+            black = ensureOpacity(black, opacity);
+
+
+            this.nanoVGManager.scissor(this.clickGuiContext.getX() + 50, this.clickGuiContext.getY() + 11, this.clickGuiContext.getWidth(), this.clickGuiContext.getHeight() - 16);
+
+            List<ModuleContext> modulesInCategory = sortedModules.stream().sorted(Comparator.comparing(module -> module.moduleContext().categoryEnum() == this.categoryEnum)).toList();
+
+            final int columns = 2;
+            final float baseModulesPerColumn = (float) modulesInCategory.size() / columns;
+            final int extraModules = modulesInCategory.size() % columns;
+
+            final List<ModuleContext> moduleContextList = new ArrayList<>();
+
+            for (final ModuleContext moduleContext : sortedModules) {
+                if (moduleContext.moduleContext().categoryEnum() == this.categoryEnum) {
+                    moduleContextList.add(moduleContext);
+
+                    final int col = i % modulesPerRow;
+
+                    AtomicInteger count = new AtomicInteger();
+
+                    Collection<AbstractComponent> components = this.moduleComponentsMap.get(moduleContext);
+                    if (components != null) {
+                        for (final AbstractComponent component : components) {
+                            count.addAndGet(component.getExtendValue());
+                        }
+                    }
+
+                    boolean hasSettings = count.get() > 0;
+                    float maxHeight = hasSettings ? 25 + count.get() : 25;
+
+                    rowHeight = maxHeight + 10;
+
+                    final float baseWidth = ((this.clickGuiContext.getWidth()) - 90) / 2f;
+
+                    final float baseX = this.clickGuiContext.getX() + 60 + col * (baseWidth + 10);
+                    final float baseY = this.clickGuiContext.getY() + 25 + (i % 2 == 0 ? cumulativeHeight2 : cumulativeHeight);
+
+                    scrollAnimation.run(scrollY);
+                    float adjustedBaseY = (float) (baseY - scrollAnimation.getValue());
+
+
+                    this.nanoVGManager.line(baseX - 0.5f, adjustedBaseY - 6, baseX - 0.5f, adjustedBaseY + maxHeight - 4, 1, black.getRGB());
+
+                    // top left
+                    this.nanoVGManager.line(baseX - 0.5f, adjustedBaseY - 5.5f, baseX + 8, adjustedBaseY - 5.5f, 1, black.getRGB());
+
+                    // top right
+                    this.nanoVGManager.line(baseX + 12 + fontRenderer.getStringWidth(moduleContext.moduleContext().name(), 5), adjustedBaseY - 5.5f, baseX + baseWidth,
+                            adjustedBaseY - 5.5f, 1, black.getRGB());
+
+                    this.nanoVGManager.line(baseX + baseWidth + 0.5f, adjustedBaseY - 6, baseX + baseWidth + 0.5f, adjustedBaseY + maxHeight - 4, 1, black.getRGB());
+                    this.nanoVGManager.line(baseX - 1f, adjustedBaseY + maxHeight - 4.5f, baseX + baseWidth + 1, adjustedBaseY + maxHeight - 4.5f, 1,
+                            black.getRGB());
+
+
+
+
+                    // left
+                    this.nanoVGManager.line(baseX, adjustedBaseY - 5.5f, baseX, adjustedBaseY + maxHeight - 4.5f, 1, outlineColor.getRGB());
+                    this.nanoVGManager.line(baseX, adjustedBaseY - 5f, baseX + 8, adjustedBaseY - 5f, 1, outlineColor.getRGB());
+                    this.nanoVGManager.line(baseX + 12 + fontRenderer.getStringWidth(moduleContext.moduleContext().name(), 5), adjustedBaseY - 5f, baseX + baseWidth, adjustedBaseY - 5f, 1,outlineColor.getRGB());
+                    this.nanoVGManager.line(baseX + baseWidth, adjustedBaseY - 5.5f , baseX + baseWidth, adjustedBaseY + maxHeight - 4.5f, 1, outlineColor.getRGB());
+                    this.nanoVGManager.line(baseX, adjustedBaseY + maxHeight - 5f, baseX + baseWidth, adjustedBaseY + maxHeight - 5f, 1, outlineColor.getRGB());
+
+                    this.nanoVGManager.roundedRect(baseX, adjustedBaseY - 5, baseWidth, maxHeight, 0, backgroundColor.getRGB());
+
+                    //this.icons.drawString("\ue80b", baseX + 4, adjustedBaseY - 1, 12, iconColor.getRGB(), true);
+
+
+                    final Animation moduleAnimation = animations.computeIfAbsent(moduleContext.moduleContext().name(), k -> new Animation(Easing.EASE_IN_OUT_EXPO,
+                            300));
+
+                    moduleAnimation.run(this.toggleService.isModuleEnabled(moduleContext.supremacyModule()) ? 1 : 0);
+
+                    int opacityTest = (int) (255 * moduleAnimation.getValue());
+                    opacityTest = Math.clamp(opacityTest, 0, 255);
+
+                    final Color enabledStartColor = new Color(157, 200, 40, opacityTest);
+                    final Color enabledEndColor = new Color(157, 200, 40, opacityTest).darker().darker();
+
+                    if (isHovering(baseX, adjustedBaseY - 5, baseWidth, maxHeight, mouseX, mouseY)) {
+                        clickGuiContext.setCanDrag(false);
+                    }
+
+                    this.nanoVGManager.rectOutline((baseX + 8f), adjustedBaseY + 2.5f, 3f, 3f, 1, black.getRGB());
+
+                    this.nanoVGManager.rect(baseX + 8, adjustedBaseY + 2.5f, 3, 3,
+                            disabledEndColor.getRGB());
+
+                    // enabled
+                    this.nanoVGManager.drawHorizontalGradientRect(baseX + 8, adjustedBaseY + 2.5f, 3, 3,
+                            enabledStartColor.getRGB(), enabledEndColor.getRGB());
+
+                    FontManager.getInstance().getFont("verdana").drawString("Enabled", baseX + 21, adjustedBaseY + 2f, 5f, whiteColor.getRGB());
+
+                    this.fontRenderer.drawString(moduleContext.moduleContext().name(), baseX + 10, adjustedBaseY - 7, 5, whiteColor.getRGB(), false);
+
+                    final AtomicInteger count2 = new AtomicInteger();
+
+                    if (components != null) {
+                        for (final AbstractComponent component : components) {
+                            component.setX(baseX);
+                            component.setY(adjustedBaseY + 10 + count2.get());
+                            component.setFrameWidth(baseWidth);
+                            component.render(mouseX, mouseY);
+                            count2.addAndGet(component.getExtendValue());
+                        }
+                    }
+
+                    if (i % 2 == 0) {
+                        cumulativeHeight2 += rowHeight;
+                    } else {
+                        cumulativeHeight += rowHeight;
+                    }
+
+                    i++;
+                }
+            }
+
+            this.nanoVGManager.resetScissor();
+       });
+    }
+
+    private Color ensureOpacity(Color color, int opacity) {
+        if (color.getAlpha() != opacity) {
+            return new Color(color.getRed(), color.getGreen(), color.getBlue(), opacity);
+        }
+        return color;
+    }
+
+
+    public void mouseClicked(double mouseX, double mouseY, int button) {
+        final List<ModuleContext> sortedModules = this.modules.stream()
+                .sorted((m1, m2) -> Integer.compare(
+                        this.moduleComponentsMap.getOrDefault(m2, Collections.emptyList()).size(),
+                        this.moduleComponentsMap.getOrDefault(m1, Collections.emptyList()).size()
+                ))
+                .toList();
+
+        int i = 0;
+        float cumulativeHeight = 0;
+        float cumulativeHeight2 = 0;
+        float rowHeight;
+
+
+        final List<ModuleContext> moduleContextList = new ArrayList<>();
+
+        for (final ModuleContext moduleContext : sortedModules) {
+            if (moduleContext.moduleContext().categoryEnum() == this.categoryEnum) {
+                final int col = i % modulesPerRow;
+                moduleContextList.add(moduleContext);
+
+                AtomicInteger count = new AtomicInteger();
+
+                Collection<AbstractComponent> components = this.moduleComponentsMap.get(moduleContext);
+                if (components != null) {
+                    for (final AbstractComponent component : components) {
+                        count.addAndGet(component.getExtendValue());
+                    }
+                }
+
+
+                boolean hasSettings = count.get() > 0;
+                float maxHeight = hasSettings ? 25 + count.get() : 25;
+
+                rowHeight = maxHeight + 10;
+
+                final float baseWidth = ((this.clickGuiContext.getWidth()) - 90) / 2f;
+
+                final float baseX = this.clickGuiContext.getX() + 70 + col * (baseWidth + 10);
+                final float baseY = this.clickGuiContext.getY() + 25 + (i % 2 == 0 ? cumulativeHeight2 : cumulativeHeight);
+
+
+                float adjustedBaseY = baseY - scrollY;
+
+                if (isHovering(baseX - 3, adjustedBaseY, 5, 10, (int) mouseX, (int) mouseY)) {
+                    this.toggleService.toggle(moduleContext.supremacyModule(), !this.toggleService.isModuleEnabled(moduleContext.supremacyModule()));
+
+                    final Animation animation = animations.computeIfAbsent(moduleContext.moduleContext().name(), k -> new Animation(Easing.EASE_IN_OUT_EXPO, 300));
+
+                    animation.run(this.toggleService.isModuleEnabled(moduleContext.supremacyModule()) ? 1 : 0);
+                }
+
+                final AtomicInteger count2 = new AtomicInteger();
+
+                if (components != null) {
+                    for (final AbstractComponent component : components) {
+                        //component.setX(baseX - 20); // subtraction
+                        //component.setY(adjustedBaseY + 20 + count2.get()); // addition
+
+                        count2.addAndGet(component.getExtendValue()); // addition
+                    }
+                }
+
+                if (i % 2 == 0) {
+                    cumulativeHeight2 += rowHeight; // addition
+                } else {
+                    cumulativeHeight += rowHeight; // addition
+                }
+
+                i++;
+            }
+        }
+
+        for (final ModuleContext moduleContext : sortedModules) {
+            if (moduleContext.moduleContext().categoryEnum() == this.categoryEnum) {
+                final Collection<AbstractComponent> components = this.moduleComponentsMap.get(moduleContext);
+
+                if (components == null) {
+                    return;
+                }
+
+                for (final AbstractComponent component : components) {
+                    component.mouseClicked((int) mouseX, (int) mouseY, button);
+                }
+            }
+        }
+    }
+
+
+    public void mouseReleased(double mouseX, double mouseY, int button) {
+        final List<ModuleContext> sortedModules = this.modules.stream()
+                .sorted((m1, m2) -> Integer.compare(
+                        this.moduleComponentsMap.getOrDefault(m2, Collections.emptyList()).size(),
+                        this.moduleComponentsMap.getOrDefault(m1, Collections.emptyList()).size()
+                ))
+                .toList();
+
+        for (final ModuleContext moduleContext : sortedModules) {
+            if (moduleContext.moduleContext().categoryEnum() == this.categoryEnum) {
+                final Collection<AbstractComponent> components = this.moduleComponentsMap.get(moduleContext);
+
+                if (components == null) {
+                    return;
+                }
+
+                for (final AbstractComponent component : components) {
+                    component.mouseReleased((int) mouseX, (int) mouseY, button);
+                }
+            }
+        }
+    }
+
+    public void mouseScrolled(double mouseX, double mouseY, double horizAmount, double verticalAmount) {
+        if (verticalAmount > 0) {
+            scrollY -= 10;
+        } else {
+            scrollY += 10;
+        }
+
+
+        scrollY = MathHelper.clamp(scrollY, 0, getMaxScrollY());
+    }
+
+    public void onGuiClosed() {
+        final List<ModuleContext> sortedModules = this.modules.stream()
+                .sorted((m1, m2) -> Integer.compare(
+                        this.moduleComponentsMap.getOrDefault(m2, Collections.emptyList()).size(),
+                        this.moduleComponentsMap.getOrDefault(m1, Collections.emptyList()).size()
+                ))
+                .toList();
+
+        for (final ModuleContext moduleContext : sortedModules) {
+            if (moduleContext.moduleContext().categoryEnum() == this.categoryEnum) {
+                final Collection<AbstractComponent> components = this.moduleComponentsMap.get(moduleContext);
+
+                if (components == null) {
+                    return;
+                }
+
+                for (final AbstractComponent component : components) {
+                    component.onGuiClosed();
+                }
+            }
+        }
+    }
+
+    public void initGui() {
+        final List<ModuleContext> sortedModules = this.modules.stream()
+                .sorted((m1, m2) -> Integer.compare(
+                        this.moduleComponentsMap.getOrDefault(m2, Collections.emptyList()).size(),
+                        this.moduleComponentsMap.getOrDefault(m1, Collections.emptyList()).size()
+                ))
+                .toList();
+
+        for (final ModuleContext moduleContext : sortedModules) {
+            if (moduleContext.moduleContext().categoryEnum() == this.categoryEnum) {
+                final Collection<AbstractComponent> components = this.moduleComponentsMap.get(moduleContext);
+
+                if (components == null) {
+                    return;
+                }
+
+                for (final AbstractComponent component : components) {
+                    component.initGui();
+                }
+            }
+        }
+    }
+
+
+    public CategoryEnum getCategoryEnum() {
+        return this.categoryEnum;
+    }
+
+    public void setCategoryEnum(CategoryEnum categoryEnum) {
+        this.categoryEnum = categoryEnum;
+    }
+
+    public static boolean isHovering(float x, float y, float width, float height, int mouseX, int mouseY) {
+        return mouseX >= x && mouseY >= y && mouseX <= x + width && mouseY <= y + height;
+    }
+
+    private int getMaxScrollY() {
+        int totalHeightCol1 = 0;
+        int totalHeightCol2 = 0;
+        int i = 0;
+
+        final List<ModuleContext> moduleContextList = new ArrayList<>();
+        for (ModuleContext moduleContext : modules) {
+            if (moduleContext.moduleContext().categoryEnum() == this.categoryEnum) {
+                AtomicInteger count = new AtomicInteger();
+                moduleContextList.add(moduleContext);
+
+                final int col = i % modulesPerRow;
+
+                int moduleHeight = 30;
+
+                Collection<AbstractComponent> components = moduleComponentsMap.get(moduleContext);
+                if (components != null) {
+                    for (AbstractComponent component : components) {
+                        count.addAndGet(component.getExtendValue());
+                        moduleHeight += component.getExtendValue();
+                    }
+                }
+
+                boolean hasSettings = count.get() > 0;
+
+                float maxHeight = hasSettings ? (((float) clickGuiContext.getHeight() / moduleContextList.size() / 2) + count.get()) : 100;
+
+                moduleHeight += (int) maxHeight;
+
+                if (i % 2 == 0) {
+                    totalHeightCol1 += moduleHeight;
+                } else {
+                    totalHeightCol2 += moduleHeight;
+                }
+                i++;
+            }
+        }
+
+        int maxHeight = Math.max(totalHeightCol1, totalHeightCol2);
+        return (int) Math.max(0, maxHeight - (clickGuiContext.getHeight()));
+    }
+}

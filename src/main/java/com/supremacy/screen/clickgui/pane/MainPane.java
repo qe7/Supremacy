@@ -1,0 +1,97 @@
+package com.supremacy.screen.clickgui.pane;
+
+import com.supremacy.module.ModuleRepository;
+import com.supremacy.nanovg.ImageManager;
+import com.supremacy.nanovg.NVGImage;
+import com.supremacy.nanovg.NanoVGManager;
+import com.supremacy.screen.clickgui.data.ClickGuiData;
+import com.supremacy.toggle.ToggleService;
+import com.supremacy.util.ColorUtil;
+import net.minecraft.util.math.MathHelper;
+
+import java.awt.*;
+
+public class MainPane implements Pane {
+
+    private final ClickGuiData clickGuiData;
+
+    private Color bgColor = new Color(40, 40, 40);
+    private Color mumbai = new Color(60, 60, 60);
+    private Color black = new Color(0, 0, 0);
+    private Color secondBgColor = new Color(20, 20, 20);
+
+    private final CategoryPane categoryPane;
+
+    public MainPane(ClickGuiData clickGuiData, final ToggleService toggleService, final ModuleRepository moduleRepository) {
+        this.clickGuiData = clickGuiData;
+        this.categoryPane = new CategoryPane(this.clickGuiData, toggleService, moduleRepository);
+    }
+
+    @Override
+    public void draw(int mouseX, int mouseY, float partialTicks) {
+        final NanoVGManager nanoVGManager = NanoVGManager.getInstance();
+
+        final int opacity = MathHelper.clamp((int) this.clickGuiData.getAnimation().getValue(), 0, 255);
+        black = ColorUtil.ensureOpacity(black, opacity);
+        bgColor = ColorUtil.ensureOpacity(bgColor, opacity);
+        mumbai = ColorUtil.ensureOpacity(mumbai, opacity);
+        secondBgColor = ColorUtil.ensureOpacity(secondBgColor, opacity);
+
+
+        nanoVGManager.immediateRender(() -> {
+            nanoVGManager.rectOutline(this.clickGuiData.getX(), this.clickGuiData.getY() + 1, this.clickGuiData.getWidth(),
+                    this.clickGuiData.getHeight() - 2, 1f, black.getRGB());
+
+            nanoVGManager.roundedRectVarying(this.clickGuiData.getX(), this.clickGuiData.getY() + 1f, this.clickGuiData.getWidth(),
+                    this.clickGuiData.getHeight() - 2f, 0, 0, 0, 0, mumbai.getRGB());
+
+            nanoVGManager.rectOutline(this.clickGuiData.getX() + 1f, this.clickGuiData.getY() + 2f, this.clickGuiData.getWidth() - 2f,
+                    this.clickGuiData.getHeight() - 4f, 1, bgColor.getRGB());
+
+            nanoVGManager.roundedRectVarying(this.clickGuiData.getX() + 2, this.clickGuiData.getY() + 3, this.clickGuiData.getWidth() - 4,
+                    this.clickGuiData.getHeight() - 6, 0, 0, 0, 0, secondBgColor.getRGB());
+
+            nanoVGManager.roundedRect(this.clickGuiData.getX() + 2f, this.clickGuiData.getY() + 3f, this.clickGuiData.getWidth() - 4f, 2, 0, new Color(12, 12, 12, 255).getRGB());
+            nanoVGManager.drawRainbowRect(this.clickGuiData.getX() + 2.5f, this.clickGuiData.getY() + 3.5f, this.clickGuiData.getWidth() - 5f, 1);
+            nanoVGManager.roundedRect(this.clickGuiData.getX() + 2f, this.clickGuiData.getY() + 4f, this.clickGuiData.getWidth() - 4f, 1, 0, new Color(0, 0, 0, 118).getRGB());
+
+
+            nanoVGManager.scissor(this.clickGuiData.getX() + 43, this.clickGuiData.getY() + 5, this.clickGuiData.getWidth() - 45, this.clickGuiData.getHeight() - 8);
+
+            NVGImage image = ImageManager.getInstance().getImage("skeetchainmail.png");
+
+            if (image != null && opacity > 35) {
+                image.drawImage(this.clickGuiData.getX(), this.clickGuiData.getY() + 5, 1920 / 2, 1080 / 2);
+            }
+
+            nanoVGManager.resetScissor();
+
+            this.categoryPane.draw(mouseX, mouseY, partialTicks);
+        });
+    }
+
+    @Override
+    public void mouseClicked(int mouseX, int mouseY, int mouseButton) {
+        this.categoryPane.mouseClicked(mouseX, mouseY, mouseButton);
+    }
+
+    @Override
+    public void mouseReleased(int mouseX, int mouseY, int state) {
+        this.categoryPane.mouseReleased(mouseX, mouseY, state);
+    }
+
+    @Override
+    public void mouseScrolled(double mouseX, double mouseY, double horizAmount, double verticalAmount) {
+        this.categoryPane.mouseScrolled(mouseX, mouseY, horizAmount, verticalAmount);
+    }
+
+    @Override
+    public void init() {
+        this.categoryPane.init();
+    }
+
+    @Override
+    public void close() {
+        this.categoryPane.close();
+    }
+}

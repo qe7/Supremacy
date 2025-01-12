@@ -1,0 +1,71 @@
+package com.supremacy.module.factory.context;
+
+import com.google.inject.AbstractModule;
+import com.google.inject.Inject;
+import com.google.inject.Injector;
+import com.google.inject.Provider;
+import com.supremacy.animation.Animation;
+import com.supremacy.animation.Easing;
+import com.supremacy.bind.BindService;
+import com.supremacy.bind.StandardBindService;
+import com.supremacy.event.core.EventBus;
+import com.supremacy.module.*;
+import com.supremacy.module.factory.data.ModuleDataFactory;
+import com.supremacy.provider.suffix.SuffixProvider;
+import com.supremacy.setting.linker.SettingLinkerFactory;
+import com.supremacy.setting.linker.SettingLinkerFactoryImpl;
+import com.supremacy.setting.registrar.SettingRegistrar;
+import com.supremacy.setting.registrar.StandardSettingRegistrar;
+import com.supremacy.setting.repository.SettingRepository;
+import com.supremacy.setting.repository.factory.SettingRepositoryFactory;
+import net.minecraft.client.MinecraftClient;
+
+public class ModuleContextFactory {
+
+    private final ModuleDataFactory moduleDataFactory;
+
+    private final Injector injector;
+
+    @Inject
+    public ModuleContextFactory(final Provider<Injector> injectorProvider) {
+        this.moduleDataFactory = new ModuleDataFactory();
+        this.injector = injectorProvider.get();
+    }
+
+    public ModuleContext create(final Class<? extends SupremacyModule> klass) {
+        final ModuleInfo moduleInfo = klass.getAnnotation(ModuleInfo.class);
+
+        if (moduleInfo == null) {
+            throw new IllegalArgumentException("Module class must have @ModuleInfo annotation");
+        }
+
+        final String name = moduleInfo.name();
+        final String description = moduleInfo.description();
+        final CategoryEnum categoryEnum = moduleInfo.category();
+
+        final ModuleData moduleData = this.moduleDataFactory.create(name, description, categoryEnum);
+
+        final Injector childInjector = injector.createChildInjector(new AbstractModule() {
+            @Override
+            protected void configure() {
+                super.bind(MinecraftClient.class).toInstance(MinecraftClient.getInstance());
+
+                super.bind(SuffixProvider.class).asEagerSingleton();
+
+                super.bind(SettingRegistrar.class).to(StandardSettingRegistrar.class);
+                super.bind(SettingLinkerFactory.class).to(SettingLinkerFactoryImpl.class);
+            }
+        });
+
+        final SupremacyModule module = childInjector.getInstance(klass);
+
+        final SettingRepository settingRepository = injector.getInstance(SettingRepositoryFactory.class)
+                .createSettingRepository(
+                        module
+                );
+
+
+        return new ModuleContext(moduleData, module, settingRepository);
+    }
+
+}
