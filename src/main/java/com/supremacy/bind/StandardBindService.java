@@ -18,7 +18,8 @@ public final class StandardBindService implements BindService {
         if (this.bindableKeyMap.containsKey(bindable)) {
             this.unbind(bindable);
         }
-        this.bindableKeyMap.putIfAbsent(bindable, key);
+
+        this.bindableKeyMap.put(bindable, key);
     }
 
     @Override

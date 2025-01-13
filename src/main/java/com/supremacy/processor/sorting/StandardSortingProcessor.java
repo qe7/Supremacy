@@ -34,10 +34,12 @@ public final class StandardSortingProcessor {
                 return collection.stream().sorted(Comparator.comparingInt((ModuleContext o) -> Integer.parseInt( o.moduleContext().name().length() + " (" + SupremacyModule.suffixProvider.getSuffix(o.supremacyModule()).length() + ")"))).toList();
             }
             case STRING_WIDTH -> {
-                return collection.stream().sorted(Comparator.comparingInt((ModuleContext o) -> minecraftClient.textRenderer.getWidth(o.moduleContext().name() + " (" + SupremacyModule.suffixProvider.getSuffix(o.supremacyModule()) + ")"))).toList();
+                return collection.stream().sorted(Comparator.comparingInt((ModuleContext o) ->
+                        minecraftClient.textRenderer.getWidth(o.moduleContext().name() + " §7(" + (SupremacyModule.suffixProvider.getSuffix(o.supremacyModule()) != null ? SupremacyModule.suffixProvider.getSuffix(o.supremacyModule()) : "") + ")"))).toList();
             }
             case REVERSED_STRING_WIDTH -> {
-                return collection.stream().sorted(Comparator.comparingInt((ModuleContext o) -> minecraftClient.textRenderer.getWidth(o.moduleContext().name() + " (" + SupremacyModule.suffixProvider.getSuffix(o.supremacyModule()) + ")"))).toList().reversed();
+                return collection.stream().sorted(Comparator.comparingInt((ModuleContext o) ->
+                        minecraftClient.textRenderer.getWidth(o.moduleContext().name() + " §7(" +  (SupremacyModule.suffixProvider.getSuffix(o.supremacyModule()) != null ? SupremacyModule.suffixProvider.getSuffix(o.supremacyModule()) : "") + ")"))).toList().reversed();
             }
             case NONE -> {
                 return collection;

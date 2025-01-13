@@ -91,6 +91,8 @@ public final class KillAuraModule implements SupremacyModule {
                 this.minecraftClient.player.swingHand(Hand.MAIN_HAND);
             }
         }, GameTickEvent.ID);
+
+        suffixProvider.provideSuffix(this, "Single");
     }
 
 }
