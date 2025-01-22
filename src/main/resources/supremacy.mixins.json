@@ -6,7 +6,9 @@
   "mixins": [
   ],
   "client": [
+    "ClientConnectionMixin",
     "ClientPlayerEntityMixin",
+    "ClientPlayerInteractionManagerAccessor",
     "GameRendererMixin",
     "InGameHudMixin",
     "KeyboardMixin",

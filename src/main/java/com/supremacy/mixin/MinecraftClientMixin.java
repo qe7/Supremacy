@@ -5,6 +5,7 @@ import com.google.inject.Provider;
 import com.supremacy.bind.BindService;
 import com.supremacy.event.core.EventBus;
 import com.supremacy.event.events.type.game.GameTickEvent;
+import com.supremacy.event.events.type.game.HandleInputEvent;
 import com.supremacy.event.events.type.key.KeyPressEvent;
 import com.supremacy.listener.BindListener;
 import com.supremacy.module.StandardModuleRepository;
@@ -15,13 +16,16 @@ import com.supremacy.provider.provider.InjectorProvider;
 import com.supremacy.toggle.ToggleService;
 import net.minecraft.client.MinecraftClient;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(MinecraftClient.class)
-public class MinecraftClientMixin {
+public abstract class MinecraftClientMixin {
+
+    @Shadow protected abstract void handleInputEvents();
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void init(CallbackInfo ci) {
@@ -90,4 +94,35 @@ public class MinecraftClientMixin {
         eventBus.publish(this.gameTickEvent);
     }
 
+    @Inject(
+            method = "handleInputEvents",
+            at = @At("HEAD")
+    )
+    private void handleInputEventsHead(CallbackInfo ci) {
+        final Provider<Injector> injectorProvider = InjectorProvider.getInstance();
+
+        final Injector injector = injectorProvider.get();
+
+        final EventBus eventBus = injector.getInstance(EventBus.class);
+
+        final HandleInputEvent handleInputEvent = new HandleInputEvent();
+        handleInputEvent.setState(false);
+        eventBus.publish(handleInputEvent);
+    }
+
+    @Inject(
+            method = "handleInputEvents",
+            at = @At("TAIL")
+    )
+    private void handleInputEventsTail(CallbackInfo ci) {
+        final Provider<Injector> injectorProvider = InjectorProvider.getInstance();
+
+        final Injector injector = injectorProvider.get();
+
+        final EventBus eventBus = injector.getInstance(EventBus.class);
+
+        final HandleInputEvent handleInputEvent = new HandleInputEvent();
+        handleInputEvent.setState(true);
+        eventBus.publish(handleInputEvent);
+    }
 }

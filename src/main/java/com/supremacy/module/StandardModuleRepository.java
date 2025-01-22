@@ -3,14 +3,12 @@ package com.supremacy.module;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.inject.Inject;
-import com.google.inject.Singleton;
 import com.supremacy.module.factory.context.ModuleContextFactory;
 import com.supremacy.module.type.combat.KillAuraModule;
+import com.supremacy.module.type.combat.VelocityModule;
+import com.supremacy.module.type.movement.SpeedModule;
 import com.supremacy.module.type.movement.SprintModule;
-import com.supremacy.module.type.render.ClickGuiModule;
-import com.supremacy.module.type.render.ESPModule;
-import com.supremacy.module.type.render.HudModule;
-import com.supremacy.module.type.render.ModuleListModule;
+import com.supremacy.module.type.render.*;
 
 import java.util.Collection;
 import java.util.Optional;
@@ -26,12 +24,19 @@ public final class StandardModuleRepository implements ModuleRepository {
     public StandardModuleRepository(ModuleContextFactory moduleContextFactory) {
         this.moduleContextFactory = moduleContextFactory;
         this.modules = this.registerModule(
+                /* Render */
                 HudModule.class,
-                SprintModule.class,
                 ModuleListModule.class,
                 ClickGuiModule.class,
+                ESPModule.class,
+
+                /* Combat */
                 KillAuraModule.class,
-                ESPModule.class
+                VelocityModule.class,
+
+                /* Movement */
+                SprintModule.class,
+                SpeedModule.class
         );
 
         final ImmutableMap.Builder<Class<? extends SupremacyModule>, ModuleContext> moduleContextMapBuilder = ImmutableMap.builder();

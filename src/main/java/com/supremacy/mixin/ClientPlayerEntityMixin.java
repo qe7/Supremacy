@@ -47,7 +47,6 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
         super(world, profile);
     }
 
-
     @Inject(method = "sendMovementPackets", at = @At("HEAD"), cancellable = true)
     private void onMotion(CallbackInfo ci) {
         ClientPlayerEntityMixin localPlayer = this;
@@ -70,10 +69,8 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
                 this.lastSneaking = bl;
             }
 
-
-            playerMoveEvent = new PlayerPositionUpdateEvent(this.getYaw(), this.getPitch(), this.prevYaw, this.prevPitch, this.getX(), this.getY(), this.getZ(), this.isOnGround());
-
-            playerMoveEvent.setState(true);
+            playerMoveEvent = new PlayerPositionUpdateEvent(this.getYaw(), this.getPitch(), this.prevYaw, this.prevPitch, this.getX(), this.getY(), this.getZ(), this.isOnGround(), this.horizontalCollision);
+            playerMoveEvent.setState(false);
             eventBus.publish(playerMoveEvent);
 
             boolean rotated;
@@ -87,16 +84,16 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
             boolean bl4 = rotated = g != 0.0 || h != 0.0;
             if (this.hasVehicle()) {
                 Vec3d vec3d = this.getVelocity();
-                networkHandler.sendPacket(new PlayerMoveC2SPacket.Full(vec3d.x, -999.0, vec3d.z, playerMoveEvent.getYaw(), playerMoveEvent.getPitch(), playerMoveEvent.isOnGround()));
+                networkHandler.sendPacket(new PlayerMoveC2SPacket.Full(vec3d.x, -999.0, vec3d.z, playerMoveEvent.getYaw(), playerMoveEvent.getPitch(), playerMoveEvent.isOnGround(), playerMoveEvent.isHorizontal()));
                 moved = false;
             } else if (moved && rotated) {
-                networkHandler.sendPacket(new PlayerMoveC2SPacket.Full(playerMoveEvent.getPosX(), playerMoveEvent.getPosY(), playerMoveEvent.getPosZ(), playerMoveEvent.getYaw(), playerMoveEvent.getPitch(), playerMoveEvent.isOnGround()));
+                networkHandler.sendPacket(new PlayerMoveC2SPacket.Full(playerMoveEvent.getPosX(), playerMoveEvent.getPosY(), playerMoveEvent.getPosZ(), playerMoveEvent.getYaw(), playerMoveEvent.getPitch(), playerMoveEvent.isOnGround(), playerMoveEvent.isHorizontal()));
             } else if (moved) {
-                networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(playerMoveEvent.getPosX(), playerMoveEvent.getPosY(), playerMoveEvent.getPosZ(), playerMoveEvent.isOnGround()));
+                networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(playerMoveEvent.getPosX(), playerMoveEvent.getPosY(), playerMoveEvent.getPosZ(), playerMoveEvent.isOnGround(), playerMoveEvent.isHorizontal()));
             } else if (rotated) {
-                networkHandler.sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(playerMoveEvent.getYaw(), playerMoveEvent.getPitch(), playerMoveEvent.isOnGround()));
+                networkHandler.sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(playerMoveEvent.getYaw(), playerMoveEvent.getPitch(), playerMoveEvent.isOnGround(), playerMoveEvent.isHorizontal()));
             } else if (this.lastOnGround != playerMoveEvent.isOnGround()) {
-                networkHandler.sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(playerMoveEvent.isOnGround()));
+                networkHandler.sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(playerMoveEvent.isOnGround(), playerMoveEvent.isHorizontal()));
             }
             if (moved) {
                 this.lastX = playerMoveEvent.getPosX();
@@ -112,9 +109,8 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
             this.autoJumpEnabled = MinecraftClient.getInstance().options.getAutoJump().getValue();
 
 
-            playerMoveEvent = new PlayerPositionUpdateEvent(this.getYaw(), this.getPitch(), this.prevYaw, this.prevPitch, this.getX(), this.getY(), this.getZ(), this.isOnGround());
-
-            playerMoveEvent.setState(false);
+            playerMoveEvent = new PlayerPositionUpdateEvent(this.getYaw(), this.getPitch(), this.prevYaw, this.prevPitch, this.getX(), this.getY(), this.getZ(), this.isOnGround(), this.horizontalCollision);
+            playerMoveEvent.setState(true);
             eventBus.publish(playerMoveEvent);
         }
     }

@@ -3,6 +3,7 @@ package com.supremacy.event.events.type.game;
 import com.supremacy.event.events.AbstractPrePostEvent;
 
 public class PlayerPositionUpdateEvent extends AbstractPrePostEvent {
+
     public static final int ID = 2;
 
     private float yaw;
@@ -11,9 +12,9 @@ public class PlayerPositionUpdateEvent extends AbstractPrePostEvent {
     private final float prevPitch;
 
     private double posX, posY, posZ;
-    private boolean onGround, rotated;
+    private boolean onGround, rotated, horizontal;
 
-    public PlayerPositionUpdateEvent(float yaw, float pitch, float prevYaw, float prevPitch, double posX, double posY, double posZ, boolean ground) {
+    public PlayerPositionUpdateEvent(float yaw, float pitch, float prevYaw, float prevPitch, double posX, double posY, double posZ, boolean ground, boolean horizontal) {
         this.yaw = yaw;
         this.pitch = pitch;
         this.prevYaw = prevYaw;
@@ -22,6 +23,7 @@ public class PlayerPositionUpdateEvent extends AbstractPrePostEvent {
         this.posY = posY;
         this.posZ = posZ;
         this.onGround = ground;
+        this.horizontal = horizontal;
     }
 
     public void setPitch(float pitch) {
@@ -92,6 +94,14 @@ public class PlayerPositionUpdateEvent extends AbstractPrePostEvent {
 
     public void setRotated(boolean rotated) {
         this.rotated = rotated;
+    }
+
+    public boolean isHorizontal() {
+        return horizontal;
+    }
+
+    public void setHorizontal(boolean horizontal) {
+        this.horizontal = horizontal;
     }
 
     @Override
